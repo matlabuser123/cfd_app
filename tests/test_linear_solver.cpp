@@ -94,6 +94,45 @@ int main()
     assert(!limitedResult.converged);
     assert(limitedResult.failureReason == "Maximum iterations reached" || limitedResult.iterations == 1);
 
+    // Relative-tolerance formula regression: target = max(absoluteTolerance,
+    // relativeTolerance * initialResidual). With x0 = 0 (LinearSystem's default), the
+    // initial residual is exactly ||rhs||, so a 1x1 system with matrix entry 1.0 gives an
+    // initial residual equal to the chosen rhs value directly -- letting these three cases
+    // exercise initialResidual < 1, ~= 1, and > 1 against the same relativeTolerance,
+    // confirming CGSolver and BiCGSTABSolver scale the target from the initial residual
+    // (not the current one) and never trivially "converge" at 0 iterations when the
+    // initial residual genuinely exceeds that target.
+    for (const double initialResidualMagnitude : {0.1, 1.0, 10.0})
+    {
+        const double relativeTolerance = 1e-6;
+        const double absoluteTolerance = 1e-8;
+        const double expectedTarget = std::max(absoluteTolerance, relativeTolerance * initialResidualMagnitude);
+
+        cfd::LinearSystem cgSystem(1);
+        cgSystem.matrix().set(0, 0, 1.0);
+        cgSystem.rhs()[0] = initialResidualMagnitude;
+        cfd::CGSolver toleranceCg({100, absoluteTolerance, relativeTolerance});
+        const cfd::LinearSolverResult cgResult = toleranceCg.solve(cgSystem);
+        assert(nearlyEqual(cgResult.initialResidual, initialResidualMagnitude, 1e-9));
+        assert(cgResult.iterations >= 1);
+        assert(cgResult.converged);
+        assert(std::isfinite(cgResult.finalResidual));
+        assert(cgResult.finalResidual <= expectedTarget + 1e-12);
+        assert(cgResult.finalResidual < cgResult.initialResidual);
+
+        cfd::LinearSystem bicgSystem(1);
+        bicgSystem.matrix().set(0, 0, 1.0);
+        bicgSystem.rhs()[0] = initialResidualMagnitude;
+        cfd::BiCGSTABSolver toleranceBicg({100, absoluteTolerance, relativeTolerance});
+        const cfd::LinearSolverResult bicgResult = toleranceBicg.solve(bicgSystem);
+        assert(nearlyEqual(bicgResult.initialResidual, initialResidualMagnitude, 1e-9));
+        assert(bicgResult.iterations >= 1);
+        assert(bicgResult.converged);
+        assert(std::isfinite(bicgResult.finalResidual));
+        assert(bicgResult.finalResidual <= expectedTarget + 1e-12);
+        assert(bicgResult.finalResidual < bicgResult.initialResidual);
+    }
+
     auto factorySolver = cfd::SolverFactory::create("CG", accurateSettings());
     assert(factorySolver != nullptr);
 
