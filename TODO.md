@@ -144,6 +144,47 @@ Continued the systematic re-derivation above. Findings, most important first:
   real convergence is achievable) the published Ghia et al. cavity benchmark data already
   referenced by `PublishedValidation.cpp`, and should be scoped and executed as a dedicated
   task rather than attempted live at the tail of this investigation.
+
+### #3a — Rhie-Chow implementation attempted (2026-09-07): also did not fix it, but revealed why
+
+Per the recommendation above, implemented and tested (probe-only; **no production files were
+changed**) a Rhie-Chow-corrected pressure-equation RHS matching the derivation above precisely
+(compact `(p_E-p_P)/dx` face gradient replacing the wide `0.5*[(dp/dx)|_P/aP_P +
+(dp/dx)|_E/aP_E]` average, using each cell's own recomputed momentum-equation source term and
+diagonal). Result: **nearly no effect** — iteration 2 diverges to `1.03336e13` with the
+correction vs. `1.0334e13` without it (see `probe_rc.cpp`, kept in the scratch directory, not the
+repo). Traced the actual correction magnitude at a representative cell: non-zero (`rc ≈ -2.79`)
+but small relative to the naive flux term (`≈27.2`) it's added to — not obviously a sign or
+implementation error, just genuinely too small to matter here.
+
+**Why, on reflection: this correction is structurally incapable of preventing the actual
+blow-up.** The Rhie-Chow term depends on the *current* pressure field (via each cell's momentum
+source and the compact pressure difference). At iteration 1 the pressure field is uniformly
+zero, so the correction is *identically zero* by construction — exactly like the earlier
+momentum-source-volume-scaling attempt. Since velocity already reaches `max|u| = 7415` (this
+tolerance) or `1183` (looser tolerance, per the original localization) by the **end of
+iteration 1** — before any pressure-dependent correction could act at all — a fix that only
+changes behavior for iteration 2 onward cannot address the actual, primary blow-up. **The defect
+is entirely contained within iteration 1's own pressure-correction → velocity-correction step,
+using a `p'` field that is itself unremarkable in magnitude (`≈∓9.3`).** This re-centers the
+investigation back on `correctVelocity`'s division by `momentumDiagonalU`/`V` (minimum `0.04` in
+this problem) as the proximate cause, but *not* as a relaxation-consistency issue (falsified
+earlier) or a checkerboard/coupling-stencil issue (falsified here) — something else about the
+relationship between the pressure-correction equation's coefficient magnitude and the velocity-
+correction formula's sensitivity to a small diagonal is still unidentified.
+
+**Five substantively different hypotheses have now been tried and falsified**: (1) raw vs.
+relaxation-inflated diagonal, (2) relaxing the velocity correction, (3) momentum source volume
+scaling, (4) Rhie-Chow pressure-equation coefficients. All were tested empirically via
+probes before any production change, and none were committed. **Recommendation: further
+guess-and-check on this specific bug has hit diminishing returns.** The next productive step is
+likely one of: (a) a line-by-line comparison against a small, independently-known-correct
+reference SIMPLE implementation (not a fresh re-derivation from first principles, which has now
+been tried multiple ways without success), (b) constructing a minimal 1D or reduced 2D test case
+with a closed-form analytical solution to isolate the exact defective coefficient by direct
+comparison rather than stability observation, or (c) dedicated CFD-numerics review by someone
+with hands-on SIMPLE-implementation experience.
+
 * [ ] Inspect mass-flux/continuity calculation (not yet reached -- blocked on the above).
 * [ ] Test `cases/cavity_20x20` at realistic tolerances (blocked on the above fix).
 * [x] Add linear-solver regression tests — n/a: root cause was in `SIMPLE.cpp`'s calling
