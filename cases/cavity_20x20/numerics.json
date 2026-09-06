@@ -1,0 +1,12 @@
+{
+    "algorithm": "SIMPLE",
+    "momentum_solver": "BiCGSTAB",
+    "pressure_solver": "CG",
+    "momentum_tolerance": 1e-8,
+    "pressure_tolerance": 1e-8,
+    "max_iterations": 1000,
+    "under_relaxation": {
+        "velocity": 0.7,
+        "pressure": 0.3
+    }
+}

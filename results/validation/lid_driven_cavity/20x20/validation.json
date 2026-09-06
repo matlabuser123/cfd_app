@@ -1,0 +1,14 @@
+{
+  "case": "lid_driven_cavity_20x20",
+  "mesh": {"nx": 20, "ny": 20},
+  "reynolds_number": 100.0,
+  "converged": false,
+  "smoke_gate_passed": true,
+  "iterations": 1,
+  "continuity_residual": 0.10000000000000001,
+  "u_residual": 4.3732139211339751,
+  "v_residual": 0,
+  "mass_imbalance": 0.10000000000000001,
+  "runtime_seconds": 0.012212500000000001,
+  "finite_solution": true
+}

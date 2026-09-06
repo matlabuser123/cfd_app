@@ -1,0 +1,17 @@
+﻿-- Install configuration: "Release"
+-- Installing: C:\Users\uqhas\AppData\Local\Temp\cfdapp-install-test-14d0316c-30ee-47bb-8012-2a1a6de0443d/bin/cfdapp.exe
+-- Installing: C:\Users\uqhas\AppData\Local\Temp\cfdapp-install-test-14d0316c-30ee-47bb-8012-2a1a6de0443d/cases
+-- Installing: C:\Users\uqhas\AppData\Local\Temp\cfdapp-install-test-14d0316c-30ee-47bb-8012-2a1a6de0443d/cases/cavity_20x20
+-- Installing: C:\Users\uqhas\AppData\Local\Temp\cfdapp-install-test-14d0316c-30ee-47bb-8012-2a1a6de0443d/cases/cavity_20x20/boundary_conditions.json
+-- Installing: C:\Users\uqhas\AppData\Local\Temp\cfdapp-install-test-14d0316c-30ee-47bb-8012-2a1a6de0443d/cases/cavity_20x20/case.json
+-- Installing: C:\Users\uqhas\AppData\Local\Temp\cfdapp-install-test-14d0316c-30ee-47bb-8012-2a1a6de0443d/cases/cavity_20x20/initial_conditions.json
+-- Installing: C:\Users\uqhas\AppData\Local\Temp\cfdapp-install-test-14d0316c-30ee-47bb-8012-2a1a6de0443d/cases/cavity_20x20/mesh.json
+-- Installing: C:\Users\uqhas\AppData\Local\Temp\cfdapp-install-test-14d0316c-30ee-47bb-8012-2a1a6de0443d/cases/cavity_20x20/numerics.json
+-- Installing: C:\Users\uqhas\AppData\Local\Temp\cfdapp-install-test-14d0316c-30ee-47bb-8012-2a1a6de0443d/cases/cavity_20x20/output.json
+-- Installing: C:\Users\uqhas\AppData\Local\Temp\cfdapp-install-test-14d0316c-30ee-47bb-8012-2a1a6de0443d/cases/cavity_20x20/physics.json
+-- Installing: C:\Users\uqhas\AppData\Local\Temp\cfdapp-install-test-14d0316c-30ee-47bb-8012-2a1a6de0443d/docs/README.md
+-- Installing: C:\Users\uqhas\AppData\Local\Temp\cfdapp-install-test-14d0316c-30ee-47bb-8012-2a1a6de0443d/docs/roadmap.md
+-- Installing: C:\Users\uqhas\AppData\Local\Temp\cfdapp-install-test-14d0316c-30ee-47bb-8012-2a1a6de0443d/docs/developer-guide.md
+Installation test passed: CFDApp 0.1.0
+Installation root: C:\Users\uqhas\AppData\Local\Temp\cfdapp-install-test-14d0316c-30ee-47bb-8012-2a1a6de0443d
+exit=0

@@ -1,0 +1,7 @@
+{
+    "fluid": "air",
+    "density": 1.0,
+    "dynamic_viscosity": 0.01,
+    "gravity": [0.0, 0.0],
+    "compressible": false
+}

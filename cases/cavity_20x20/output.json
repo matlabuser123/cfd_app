@@ -1,0 +1,6 @@
+{
+    "directory": "data/output/cavity_20x20",
+    "write_csv": true,
+    "write_json": true,
+    "write_vtk": true
+}

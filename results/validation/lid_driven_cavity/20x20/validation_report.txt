@@ -1,0 +1,14 @@
+case: lid_driven_cavity_20x20
+mesh: 20x20
+rho: 1.0
+mu: 0.01
+reynolds: 100
+strict_converged: false
+smoke_gate_passed: true
+iterations: 1
+continuity_residual: 0.10000000000000001
+u_residual: 4.3732139211339751
+v_residual: 0
+mass_imbalance: 0.10000000000000001
+runtime_milliseconds: 12.2125
+finite_solution: true

@@ -1,0 +1,60 @@
+Test project C:/Users/uqhas/OneDrive/Desktop/cfd_app/build/debug
+      Start  1: CFDMeshTests
+ 1/21 Test  #1: CFDMeshTests .....................   Passed    0.04 sec
+      Start  2: CFDScalarFieldTests
+ 2/21 Test  #2: CFDScalarFieldTests ..............   Passed    0.03 sec
+      Start  3: CFDVectorFieldTests
+ 3/21 Test  #3: CFDVectorFieldTests ..............   Passed    0.03 sec
+      Start  4: CFDBoundaryConditionTests
+ 4/21 Test  #4: CFDBoundaryConditionTests ........   Passed    0.04 sec
+      Start  5: CFDCaseTests
+ 5/21 Test  #5: CFDCaseTests .....................   Passed    0.04 sec
+      Start  6: CFDGUIControllerTests
+ 6/21 Test  #6: CFDGUIControllerTests ............   Passed    0.05 sec
+      Start  7: CFDDiscretizationTests
+ 7/21 Test  #7: CFDDiscretizationTests ...........   Passed    0.03 sec
+      Start  8: CFDSparseMatrixTests
+ 8/21 Test  #8: CFDSparseMatrixTests .............   Passed    0.03 sec
+      Start  9: CFDLinearSolverTests
+ 9/21 Test  #9: CFDLinearSolverTests .............   Passed    0.04 sec
+      Start 10: CFDMomentumTests
+10/21 Test #10: CFDMomentumTests .................   Passed    0.13 sec
+      Start 11: CFDPressureTests
+11/21 Test #11: CFDPressureTests .................   Passed    0.12 sec
+      Start 12: CFDSIMPLETests
+12/21 Test #12: CFDSIMPLETests ...................   Passed    0.08 sec
+      Start 13: CFDValidationTests
+13/21 Test #13: CFDValidationTests ...............   Passed    0.23 sec
+      Start 14: CFDProfilingTests
+14/21 Test #14: CFDProfilingTests ................   Passed    0.07 sec
+      Start 15: CFDOptimizationTests
+15/21 Test #15: CFDOptimizationTests .............   Passed    0.03 sec
+      Start 16: CFDIOTests
+16/21 Test #16: CFDIOTests .......................   Passed    0.11 sec
+      Start 17: CFDParallelTests
+17/21 Test #17: CFDParallelTests .................   Passed    0.14 sec
+      Start 18: CFDGPUTests
+18/21 Test #18: CFDGPUTests ......................   Passed    0.14 sec
+      Start 19: CFDPerformance80x80
+19/21 Test #19: CFDPerformance80x80 ..............   Passed    0.36 sec
+      Start 20: CFDThreadScaling80x80
+20/21 Test #20: CFDThreadScaling80x80 ............   Passed    1.54 sec
+      Start 21: CFDGPUSpMVBenchmark
+21/21 Test #21: CFDGPUSpMVBenchmark ..............***Skipped   0.04 sec
+
+100% tests passed out of 21
+
+Label Time Summary:
+benchmark      =   1.94 sec*proc (3 tests)
+correctness    =   0.36 sec*proc (3 tests)
+equivalence    =   0.14 sec*proc (1 test)
+gpu            =   0.18 sec*proc (2 tests)
+parallel       =   0.22 sec*proc (2 tests)
+performance    =   1.94 sec*proc (3 tests)
+scaling        =   1.54 sec*proc (1 test)
+
+Total Test time (real) =   3.38 sec
+
+The following tests did not run:
+	 21 - CFDGPUSpMVBenchmark (Skipped)
+exit=0

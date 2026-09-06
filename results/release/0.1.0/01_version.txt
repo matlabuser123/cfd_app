@@ -1,0 +1,4 @@
+=== debug cfdapp --version ===
+CFDApp 0.1.0
+=== release cfdapp --version ===
+CFDApp 0.1.0

@@ -1,0 +1,17 @@
+{
+    "boundaries": {
+        "top": {
+            "type": "velocity",
+            "value": [1.0, 0.0]
+        },
+        "bottom": {
+            "type": "wall"
+        },
+        "left": {
+            "type": "wall"
+        },
+        "right": {
+            "type": "wall"
+        }
+    }
+}

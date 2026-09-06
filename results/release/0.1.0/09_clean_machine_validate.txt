@@ -1,0 +1,3 @@
+﻿Clean-machine validation passed: CFDApp 0.1.0
+Extracted package root: C:\Users\uqhas\AppData\Local\Temp\cfdapp-clean-machine-95210594-96e1-4db3-943f-18b154129340\CFDApp-0.1.0-Windows-x64
+exit=0

@@ -1,0 +1,39 @@
+{
+    "version": 6,
+    "configurePresets": [
+        {
+            "name": "windows-debug",
+            "displayName": "Windows Debug",
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/build/debug",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "CFDAPP_BUILD_TESTS": "ON",
+                "CFDAPP_BUILD_BENCHMARKS": "ON"
+            }
+        },
+        {
+            "name": "windows-release",
+            "displayName": "Windows Release",
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/build/release",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release",
+                "CFDAPP_BUILD_TESTS": "ON",
+                "CFDAPP_BUILD_BENCHMARKS": "ON",
+                "CFDAPP_BUILD_GUI": "OFF",
+                "CFDAPP_BUILD_CUDA": "OFF"
+            }
+        }
+    ],
+    "buildPresets": [
+        {
+            "name": "debug",
+            "configurePreset": "windows-debug"
+        },
+        {
+            "name": "release",
+            "configurePreset": "windows-release"
+        }
+    ]
+}

@@ -1,0 +1,10 @@
+{
+    "name": "lid_driven_cavity",
+    "dimensions": 2,
+    "mesh": "mesh.json",
+    "physics": "physics.json",
+    "boundary_conditions": "boundary_conditions.json",
+    "initial_conditions": "initial_conditions.json",
+    "numerics": "numerics.json",
+    "output": "output.json"
+}

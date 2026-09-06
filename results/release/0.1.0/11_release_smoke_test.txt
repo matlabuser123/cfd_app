@@ -1,0 +1,9 @@
+﻿Release smoke test passed: CFDApp 0.1.0
+80x80 benchmark: cells=6400 iterations=1 continuityResidual=0.025 uResidual=9.10357 vResidual=0 median_elapsed_ms=22.1189 samples=5 converged=true finite=true maximum_median_ms=200
+Top hotspots:
+  1. simple_iteration = 18.7269 ms
+  2. u_momentum_assembly = 3.0316 ms
+  3. pressure_assembly = 1.8451 ms
+  4. v_momentum_assembly = 1.6562 ms
+  5. velocity_correction = 0.9369 ms
+exit=0
