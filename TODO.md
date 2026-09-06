@@ -3,11 +3,22 @@
 Generated from a project progress review on 2026-09-07. Ordered by priority — work top to bottom.
 Each item has context and acceptance criteria so it can be picked up independently.
 
+**Agreed sequencing (2026-09-07):**
+
+1. ✅ GPU scope documentation — this file, `roadmap.md`, `README.md` (item #4)
+2. ✅ Resolve the recurring CRLF churn, uncommitted (item #1's note)
+3. ✅ Verify `windows-ci.yml` runs green on GitHub (item #1) — confirmed via GitHub's public
+   Actions API: run `34039534422` on `main` @ `5e9e7ba` (current HEAD) succeeded, 2026-09-07
+4. ✅ Cut the GitHub Release `v0.1.0`, attach the ZIP (item #8) — published 2026-09-07
+5. Wire up `cfdapp --case <path>` (item #3) — **deliberately not started yet**, first post-release task
+6. Add `.gitattributes` to prevent future CRLF churn (item #1's note) — deferred until after the release is cut, to avoid touching repo config pre-release
+7. Post-release CFD backlog: full CUDA SIMPLE coupling (item #9) plus the rest of `roadmap.md`'s "Post-Release" list
+
 ---
 
 ## P0 — Blockers for anything called "release"
 
-### 1. Partially done (2026-09-07) — Initialize version control and verify CI actually runs
+### 1. ✅ DONE (2026-09-07, remote push + green CI both confirmed) — Initialize version control and verify CI actually runs
 **Context:** This directory had no `.git` — `.github/workflows/windows-ci.yml` existed but had
 never executed. There was no commit history, no way to diff "what changed," and no place to
 attach a tagged release.
@@ -16,12 +27,29 @@ attach a tagged release.
       `results/release/*/*.zip` (binary release archives — better attached to a GitHub Release
       than kept in git history; the evidence text/json/csv alongside them is still tracked)
 - [x] Initial commit made (213 files) and tagged `v0.1.0`
-- [ ] Still open: **push to a GitHub remote** — deliberately not done automatically; needs you to
-      say where (existing repo URL, or create one)
-- [ ] Still open: confirm `Windows CI` workflow actually runs green once pushed (configure →
-      build → test for both debug and release, package, clean-machine validate, install test)
+- [x] Pushed to a GitHub remote: `origin` → `https://github.com/matlabuser123/cfd_app.git`.
+      Confirmed `main` is up to date with `origin/main`, and `git ls-remote --tags origin` shows
+      `v0.1.0` (and its dereferenced commit) present on the remote (2026-09-07).
+- [x] Confirmed `Windows CI` workflow runs green on GitHub — queried GitHub's public Actions API
+      directly (`api.github.com/repos/matlabuser123/cfd_app/actions/workflows/windows-ci.yml/runs`,
+      no `gh` CLI or auth needed for a public repo): run `34039534422` on branch `main` at commit
+      `5e9e7ba` (current HEAD) — `status: completed`, `conclusion: success`. A second run on the
+      `v0.1.0` tag ref (commit `56c20c5`) also succeeded. (2026-09-07)
 **Acceptance:** GitHub Actions shows a green run of `windows-ci.yml` on the repo's default branch.
-— not yet met; blocked on a remote.
+— **met.**
+
+**Also noted in passing (2026-09-07, recurred twice):** a transient whole-tree staged diff showed
+up locally on two separate occasions (~190 files, then 209 files), caused by `core.autocrlf`
+differing between the Windows git and WSL git sessions used against this same (OneDrive-synced)
+working tree — confirmed both times via `git diff --cached --ignore-cr-at-eol --stat` to be 100%
+line-ending churn with zero real content changes (the only files with genuine staged content on
+the second occurrence were this file and `roadmap.md`, from the push-status and GPU-scope doc
+updates). Both times it was resolved by discarding the CRLF-only changes (`git restore --staged
+--worktree` back to `HEAD`) **without committing anything**, per the agreed sequencing above —
+so no bad commit has resulted either time. There's still no `.gitattributes`, so this can recur a
+third time; adding one (e.g. `* text=auto eol=lf` + `git add --renormalize .`) is deliberately
+deferred to step 6 of the sequencing above, after the `v0.1.0` GitHub Release is cut, so a repo-config
+change doesn't get mixed into the release-cutting commits.
 
 ### 2. ✅ DONE (2026-09-07) — Fix the 4 currently-failing local tests and pin the toolchain
 **Context:** `roadmap.md` claimed "Verified baseline: 20 passing tests," but running
@@ -55,30 +83,44 @@ on a clean shell passes 20/20 non-hardware-gated tests, reproducibly. — **met.
 for `--case`. The only runnable end-to-end path today is the hardcoded `--validate-20`. General
 case execution (load any `cases/<name>/` directory and run it) doesn't exist from the command line.
 **Do:**
-- [ ] Implement `cfdapp --case <path>` to load a case directory (reusing the existing case-loading
-      code already exercised by `CFDCaseTests` / the Qt `CaseEditor`) and run the SIMPLE solver to
-      convergence or the configured iteration limit
-- [ ] Emit the same evidence artifacts `--validate-20` does (report/JSON/residuals) under a
-      case-specific results path
-- [ ] Add a CLI-level test (or extend `tests/test_case.cpp`) covering a full `--case` run against
-      `cases/cavity_20x20`
+- [ ] Implement general case-directory loading through the CLI (reusing the existing case-loading
+      code already exercised by `CFDCaseTests` / the Qt `CaseEditor`) — remove the current
+      hardcoded-only `--validate-20` limitation and allow arbitrary supported case directories
+- [ ] Run the existing SIMPLE solver through `cfd_core` to convergence or the configured iteration
+      limit, with configurable convergence settings read from the case's `numerics.json`
+- [ ] Produce deterministic solver output and emit the same evidence artifacts `--validate-20` does
+      (report/JSON/residuals), using the same result/evidence formats as the validation workflow,
+      under a case-specific results path
+- [ ] Add a CLI regression test (or extend `tests/test_case.cpp`) covering a full end-to-end
+      `--case` run against `cases/cavity_20x20`
 **Acceptance:** `cfdapp --case cases/cavity_20x20` runs to completion and writes result artifacts,
 with a passing test covering it.
 
-### 4. Decide and document GPU (CUDA) solve scope for this release
+### 4. ✅ DONE (2026-09-07) — Decide and document GPU (CUDA) solve scope for this release
 **Context:** CUDA kernels, field ops, matrix assembly, and linear algebra are implemented and
 equivalence-tested against CPU, but SIMPLE coupling itself has not been ported to GPU — per
 `README.md`, GUI CUDA backend selection "falls back to the CPU solver until CUDA SIMPLE coupling
-is available." `roadmap.md` marks GPU as fully ✅, which overstates the current state.
-**Do:** pick one:
-- [ ] **Option A (scope it in):** Port SIMPLE coupling to the GPU backend so CUDA selection in the
-      GUI performs a real GPU-accelerated solve, with CPU/GPU numerical equivalence tests extended
-      to cover the full solve loop, not just individual kernels
-- [ ] **Option B (scope it out):** Update `roadmap.md` and `README.md` to accurately state that
-      v0.1.0 ships CPU/OpenMP solving with GPU-accelerated linear-algebra primitives only, and that
-      full GPU SIMPLE coupling is a post-release item
+is available." `roadmap.md` marked GPU as fully ✅ with no caveat, which overstated the current state.
+**Decision: Option B (scope it out)** — v0.1.0 ships CPU/OpenMP SIMPLE solving; CUDA support is
+limited to validated acceleration primitives (field operations, CSR assembly, SpMV). Full CUDA
+SIMPLE coupling is post-v0.1.0 work. Chosen because everything else is already release-tagged and
+pushed, and the GUI/CLI code already implements this behavior (`CFDController::configureBackend`
+falls back to CPU for any CUDA request) — Option B just makes the docs match the code, rather than
+requiring new solver work to match an aspirational doc.
+- [x] `README.md`: added a "GPU (CUDA) Scope in v0.1.0" section; updated the intro line and the
+      GUI paragraph to point to it
+- [x] `roadmap.md`: added a "v0.1.0 GPU scope" note under Current Focus; annotated the "🚀 Current
+      position" table's `CUDA ✅` line with a footnote; retitled the vague "Expanded GPU solver
+      coverage" Post-Release bullet to "Full CUDA SIMPLE coupling"
+- [x] `TODO.md` (this file): closed out this item
 **Acceptance:** `roadmap.md`, `README.md`, and the GUI's backend-selection UI/behavior all agree
-on what CUDA selection actually does in this release.
+on what CUDA selection actually does in this release. — **met.**
+
+**Backend policy going forward:** distinguish **supported solver backends** (capable of executing
+the complete SIMPLE algorithm — currently Serial CPU and OpenMP CPU) from **acceleration
+primitives** (GPU/parallel numerical operations usable underneath the solver but not a complete
+solver backend on their own — currently everything CUDA provides). CUDA moves from the second
+category to the first only when item #9 below is complete.
 
 ---
 
@@ -119,12 +161,158 @@ single string before matching.
       `.gitignore` note) — attach `build/release/CFDApp-0.1.0-Windows-x64.zip` as a **GitHub
       Release** asset once #1's remote exists, rather than tagging-and-forgetting it locally
 
-### 8. Final release
-- [ ] Cut the GitHub release from the tag, attach the CI-built artifact from the `Windows CI` workflow
-- [ ] Update `roadmap.md` to move "Release Engineering" into 🟢 Complete and define the next
-      post-release milestone from the roadmap's existing "🟡 Next" list (performance tuning,
-      larger-mesh benchmarks, additional validation cases, turbulence models, expanded GPU coverage,
-      more visualization features)
+### 8. ✅ DONE (2026-09-07) — Final release
+**Published:** `https://github.com/matlabuser123/cfd_app/releases/tag/v0.1.0` — title "CFDApp
+v0.1.0", on the existing `v0.1.0` tag (commit `56c20c5`). Authenticated as `matlabuser123`
+(confirmed `ADMIN` permission on the repo before publishing; a first login attempt authenticated
+as the wrong account, `matlabuser3` — read-only — and was logged out before retrying).
+- [x] Cut the GitHub release from the tag, attach the CI-built artifact from the `Windows CI`
+      workflow — used the artifact from Actions run
+      [34039782169](https://github.com/matlabuser123/cfd_app/actions/runs/34039782169) (the run
+      triggered by the `v0.1.0` tag push itself, commit `56c20c5` — an exact match, not just "a
+      recent green run"), not the local build; verified via `gh release view --json assets` that
+      the published asset's digest (`sha256:bf0a7357fec41bb9d03f7d74898e6a572231e0099dfec5b5e4f83d42a9690fee`,
+      685,344 bytes) matches the downloaded CI artifact exactly. Release notes drawn from
+      `CHANGELOG.md` (Added/Fixed/Known Limitations), plus the asset provenance/checksum above.
+- [x] Updated `roadmap.md`: moved Release Engineering into 🟢 Complete with the release URL; set
+      Current Focus to item #3 (`--case` CLI), the next task per this file's agreed sequencing
+      (item 5) rather than the generic Post-Release list, since that sequencing is more specific;
+      updated the "🚀 Current position" table and closing status line accordingly
+- [x] Corrected two stale lines in `CHANGELOG.md`'s Known Limitations that predated the repo/CI
+      existing ("no remote repository configured yet", "CI has not yet executed against a hosted
+      runner") — both now read correctly against verified state
+
+---
+
+## P3 — Post-v0.1.0 CUDA Development
+
+### 9. GPU SIMPLE Coupling, Validation, and Performance
+
+**Status:** 🟡 Started (2026-09-07) — solver-backend seam in place; no CUDA kernel work yet (see below)
+
+**Dependency:** #8 must be completed before this task's actual CUDA kernel work begins — that
+constraint stands. The seam introduced below is pure CPU C++ (no CUDA), added because it was
+already identified as the prerequisite groundwork; started early only because it doesn't touch or
+risk any shipped v0.1.0 behavior. Do not read this as license to skip ahead on the rest of #9.
+
+**Context:** This is the "Option A" CUDA work that item #4 deliberately scoped out of v0.1.0.
+Full task breakdown is maintained in `roadmap.md` under **CUDA / GPU Acceleration → Post-v0.1.0
+CUDA Development** rather than being duplicated here.
+
+**Architecture note (verified against the current source, not just the docs):** there was no
+existing Serial/OpenMP/CUDA solver-backend seam to plug a CUDA implementation into — `SIMPLE` was
+one concrete class, `SolverFactory` only selected the inner linear solver (CG vs. BiCGSTAB), and
+`CFDController::configureBackend` just flipped the OpenMP toggle. **This seam is now built** (see
+Progress below); a future CUDA implementation plugs into it rather than needing to invent it too.
+
+#### Progress (2026-09-07) — solver-backend seam, CPU-only, no CUDA kernels
+
+- [x] `src/solver/simple/SimpleBackend.hpp` — abstract interface (`solve`/`setBoundaryConditions`/
+      `setProfiler`) any compute backend implements.
+- [x] `src/solver/simple/CpuSimpleBackend.{hpp,cpp}` — thin adapter wrapping the existing `SIMPLE`
+      class unchanged; used for both Serial and OpenMP (they differ only in `ParallelRuntime`
+      configuration, not in solver code, as already established).
+- [x] `src/solver/simple/SimpleBackendFactory.{hpp,cpp}` — builds a backend from a requested
+      `ComputeBackend`. Serial/OpenMP → `CpuSimpleBackend`. CUDA → **honestly falls back to
+      `CpuSimpleBackend`** (there is still no `CudaSimpleBackend`), but the returned
+      `selection.status` now distinguishes "CUDA hardware available, but CUDA SIMPLE coupling
+      isn't implemented yet" from "no CUDA hardware available" — the existing `CFDController`
+      status string conflates the two.
+- [x] `tests/test_solver_backend.cpp` (new `CFDSolverBackendTests`, labeled
+      `parallel;gpu;correctness`) proves: Serial-via-factory is bit-identical (< 1e-12) to calling
+      `SIMPLE` directly; OpenMP-via-factory matches the serial reference; a CUDA request returns
+      `active == Serial` (never claims CUDA ran) and still executes a fully correct, convergent CPU
+      solve — not a stub — with `setProfiler` correctly forwarded.
+- [x] Full regression suite re-run on both presets after this change: **debug 21/21 passed, release
+      21/21 passed** (GPU SpMV benchmark skips cleanly, as before) — zero regressions.
+- [ ] **Not done, deliberately:** no CUDA kernel code (momentum assembly, pressure-correction
+      assembly, GPU-resident SIMPLE loop, residual reductions) was written. This environment has no
+      CUDA toolkit (`nvcc` not found) — writing GPU numerics that can't be compiled or checked
+      against the CPU reference here would violate this project's own design rules (CPU/GPU
+      equivalence required, every major change needs tests) and the Backend Completion Gate below.
+      That work requires a CUDA-capable machine.
+- [ ] **Not done, deliberately:** existing production call sites (`ValidationRunner`,
+      `CFDController`, the CLI) were **not** rewired to go through `SimpleBackendFactory` — they
+      still construct `SIMPLE` directly, unchanged, so nothing shipped in v0.1.0 is touched by this.
+      Wiring them through the factory is a reasonable small next step, kept separate from actual
+      CUDA kernel work so it can be reviewed on its own.
+
+#### Implementation
+
+- [ ] Port momentum-equation assembly to CUDA.
+- [ ] Port pressure-correction assembly to CUDA.
+- [ ] Implement GPU-compatible SIMPLE coupling.
+- [ ] Implement GPU residual/convergence reductions.
+- [ ] Minimize CPU↔GPU transfers inside the SIMPLE iteration loop.
+- [ ] Ensure the GPU path can execute a complete SIMPLE iteration without falling back to the CPU solver.
+
+#### Numerical Validation
+
+- [ ] Establish complete CPU/GPU numerical-equivalence tests.
+- [ ] Compare velocity fields.
+- [ ] Compare pressure fields.
+- [ ] Compare mass-flux balance.
+- [ ] Compare residual histories.
+- [ ] Establish deterministic GPU regression tolerances.
+- [ ] Add end-to-end GPU SIMPLE regression coverage.
+
+#### Performance
+
+- [ ] Benchmark GPU SIMPLE against Serial CPU.
+- [ ] Benchmark GPU SIMPLE against OpenMP CPU.
+- [ ] Measure host↔device transfer overhead.
+- [ ] Measure CUDA kernel execution costs.
+- [ ] Measure GPU SpMV performance.
+- [ ] Measure GPU matrix-assembly performance.
+- [ ] Benchmark larger meshes.
+- [ ] Establish GPU scaling limits.
+
+### Backend Completion Gate
+
+**Do not advertise CUDA as a complete SIMPLE solver backend until every gate below is satisfied:**
+
+- [ ] Complete SIMPLE iteration executes on CUDA.
+- [ ] Momentum-equation path executes on CUDA.
+- [ ] Pressure-correction path executes on CUDA.
+- [ ] Residual/convergence evaluation executes correctly on CUDA.
+- [ ] CPU/GPU numerical equivalence is demonstrated end-to-end.
+- [ ] GPU SIMPLE regression tests pass.
+- [ ] GPU benchmarks demonstrate measured performance.
+- [ ] GUI CUDA backend selection genuinely executes the CUDA solver.
+- [ ] CUDA requests no longer silently fall back to the CPU SIMPLE solver.
+
+### Acceptance Criteria
+
+Task #9 is **COMPLETE** only when:
+
+1. The complete SIMPLE iteration executes through the CUDA backend.
+2. Momentum and pressure-correction paths are GPU-enabled.
+3. CPU/GPU results satisfy documented numerical tolerances.
+4. End-to-end GPU regression tests pass.
+5. GPU performance is measured against Serial and OpenMP implementations.
+6. Host↔device transfer costs and major GPU kernel costs are documented.
+7. The GUI genuinely executes the CUDA solver when CUDA is selected.
+8. `roadmap.md` and `README.md` are updated to declare CUDA a supported SIMPLE solver backend
+   alongside Serial and OpenMP.
+
+Until all acceptance criteria are satisfied, CUDA remains classified as **GPU acceleration
+primitives only**, not a complete SIMPLE solver backend.
+
+### Dependency chain
+
+```text
+#4 — v0.1.0 CUDA scope decision
+      ↓
+#8 — prerequisite / post-release gate
+      ↓
+#9 — full CUDA SIMPLE implementation
+      ↓
+Backend Completion Gate
+      ↓
+CUDA becomes a supported SIMPLE backend
+```
+
+Do not start #9 now. Finish #8 first, then #9 becomes the dedicated CUDA development task.
 
 ---
 

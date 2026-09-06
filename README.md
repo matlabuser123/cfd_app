@@ -1,6 +1,6 @@
 # CFDApp
 
-CFDApp is a C++20 finite-volume CFD reference application. It provides a deterministic CPU SIMPLE solver, validation and benchmark gates, optional OpenMP acceleration, and an optional Qt interface when Qt 6 is available.
+CFDApp is a C++20 finite-volume CFD reference application. It provides a deterministic CPU SIMPLE solver, validation and benchmark gates, optional OpenMP acceleration, optional CUDA-accelerated linear-algebra primitives, and an optional Qt interface when Qt 6 is available.
 
 ## Requirements
 
@@ -88,6 +88,45 @@ ctest --test-dir build/debug -L gpu --output-on-failure
 
 GPU benchmarks skip cleanly when the CUDA toolkit or a compatible device is unavailable.
 
+## CUDA / GPU Scope in v0.1.0
+
+CFDApp v0.1.0 includes CUDA infrastructure and validated GPU-accelerated numerical primitives, but **does not provide a complete CUDA SIMPLE solver**.
+
+The v0.1.0 backend scope is:
+
+| Backend    | SIMPLE Solver | GPU Acceleration                     | Status                    |
+| ---------- | ------------: | ------------------------------------:| ------------------------- |
+| Serial CPU |           Yes | No                                   | Supported                 |
+| OpenMP CPU |           Yes | No                                   | Supported                 |
+| CUDA       |            No | Yes — selected numerical primitives  | Infrastructure / partial  |
+
+CUDA support in v0.1.0 covers validated GPU primitives including:
+
+- field operations;
+- CSR matrix assembly/conversion;
+- sparse matrix-vector multiplication (SpMV), each tested for numerical equivalence against the CPU implementation (`ctest -L gpu`);
+- CUDA availability detection and infrastructure.
+
+These CUDA components are designed as acceleration layers underneath the numerical stack. They are **not an alternative CFD solver** and do not replace the CPU SIMPLE implementation.
+
+The complete SIMPLE coupling — the actual pressure-velocity solve loop — remains CPU-based in v0.1.0. In particular, selecting CUDA as the compute backend (CLI or GUI) does not execute the SIMPLE algorithm on the GPU: the application explicitly reports that CUDA is unavailable for complete SIMPLE coupling and falls back to the serial CPU implementation, rather than running a partial or incorrect GPU path.
+
+This scope is intentional for the v0.1.0 release. It ensures that the released CUDA functionality is limited to components that have been implemented and validated, rather than presenting incomplete GPU SIMPLE support as a production solver.
+
+### Post-v0.1.0 CUDA Roadmap
+
+Future CUDA development is planned to progressively move additional CFD operations onto the GPU, with the eventual goal of supporting complete GPU-resident SIMPLE coupling:
+
+1. GPU-compatible momentum-equation assembly.
+2. GPU-compatible pressure-correction assembly.
+3. GPU SIMPLE coupling.
+4. GPU convergence/residual evaluation.
+5. Reduction of CPU↔GPU data transfers.
+6. End-to-end CPU/GPU numerical-equivalence validation.
+7. GPU performance and scaling benchmarks on larger meshes.
+
+Until these components are implemented and validated, **CPU/OpenMP remains the supported SIMPLE solving path** — see `roadmap.md`'s "CUDA / GPU Acceleration" section and `TODO.md`'s CUDA scope decision for the full record.
+
 ## Release Package
 
 Build the optimized release configuration and run its complete regression suite:
@@ -123,5 +162,5 @@ cmake --build build/gui --target cfd_gui
 .\build\gui\cfd_gui.exe
 ```
 
-The GUI provides case editing/loading, CPU/OpenMP/CUDA backend selection, cancellable validation, residual monitoring, VTK heatmaps, and selectable CSV/JSON/VTK exports. CUDA selection falls back to the CPU solver until CUDA SIMPLE coupling is available.# CFDApp
+The GUI provides case editing/loading, CPU/OpenMP/CUDA backend selection, cancellable validation, residual monitoring, VTK heatmaps, and selectable CSV/JSON/VTK exports. CUDA selection falls back to the CPU solver until CUDA SIMPLE coupling is available — see "GPU (CUDA) Scope in v0.1.0" above.
 

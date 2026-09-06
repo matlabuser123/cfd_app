@@ -56,9 +56,8 @@ packaged, installable release artifact.
 - CUDA kernel/field-op/matrix-assembly/linear-algebra primitives are implemented and tested for
   CPU/GPU equivalence, but SIMPLE coupling itself has not been ported to GPU — the GUI's CUDA
   backend selection currently falls back to the CPU solver.
-- This release was validated on a single development machine; the CI pipeline referenced above
-  has not yet executed against a hosted runner (see repository history — this is the initial
-  commit bringing the project under version control).
+- This release was validated on a single development machine; regression, validation, and
+  benchmark evidence in `results/release/0.1.0/` was captured locally rather than on the hosted
+  CI runner, though the CI pipeline itself has run green on GitHub Actions against this commit.
 
-<!-- No remote repository is configured yet, so there is no release URL to link here. Once one
-     exists, add: [0.1.0]: <remote-url>/releases/tag/v0.1.0 -->
+[0.1.0]: https://github.com/matlabuser123/cfd_app/releases/tag/v0.1.0

@@ -80,3 +80,8 @@ add_executable(cfd_gpu_tests test_gpu.cpp)
 target_link_libraries(cfd_gpu_tests PRIVATE cfd_core)
 add_test(NAME CFDGPUTests COMMAND cfd_gpu_tests)
 set_tests_properties(CFDGPUTests PROPERTIES LABELS "gpu;equivalence;correctness")
+
+add_executable(cfd_solver_backend_tests test_solver_backend.cpp)
+target_link_libraries(cfd_solver_backend_tests PRIVATE cfd_core)
+add_test(NAME CFDSolverBackendTests COMMAND cfd_solver_backend_tests)
+set_tests_properties(CFDSolverBackendTests PROPERTIES LABELS "parallel;gpu;correctness")

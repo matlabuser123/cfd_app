@@ -68,19 +68,107 @@
 - Static-linked MinGW runtime (`-static-libgcc -static-libstdc++ -static`) removing dependence on PATH-resolved `libstdc++-6.dll`/`libgcc_s_seh-1.dll`/`libwinpthread-1.dll` at load time
 - Final regression suite: debug and release configurations both 20/20 passing (GPU SpMV benchmark skips cleanly without CUDA hardware), 2026-09-07
 - Release evidence package: version, regression suite, 20×20/40×40/80×80 evidence, packaging/install/smoke validation, and checksum collected under `results/release/0.1.0/` (2026-09-07); fixed a latent `release-smoke-test.ps1` bug found in the process (PowerShell array vs. `-notmatch` semantics)
+- GitHub Release `v0.1.0` published (2026-09-07): `https://github.com/matlabuser123/cfd_app/releases/tag/v0.1.0`, with the CI-built ZIP attached (Actions run `34039782169`, the run triggered by the `v0.1.0` tag push itself at commit `56c20c5` — not a local build)
+
+---
+
+## CUDA / GPU Acceleration
+
+### v0.1.0 Release Scope — COMPLETE
+
+CFDApp v0.1.0 includes CUDA infrastructure and validated GPU numerical primitives.
+
+Completed:
+
+- [x] CUDA project infrastructure.
+- [x] CUDA device detection.
+- [x] GPU field-operation kernels.
+- [x] GPU CSR matrix conversion/assembly support.
+- [x] GPU sparse matrix-vector multiplication (SpMV).
+- [x] CPU/GPU numerical-equivalence tests.
+- [x] CUDA test infrastructure with clean skipping when CUDA hardware is unavailable.
+- [x] CUDA components integrated as acceleration layers beneath the CPU numerical stack.
+- [x] Documented limitation that complete CUDA SIMPLE coupling is not part of v0.1.0.
+
+### v0.1.0 CUDA Limitation
+
+The complete SIMPLE solver remains CPU-based for v0.1.0.
+
+Supported SIMPLE execution backends:
+
+- Serial CPU.
+- OpenMP CPU.
+
+CUDA is **not currently a complete SIMPLE solver backend**. The existing CUDA implementation provides validated numerical primitives only, including field operations, CSR assembly/conversion, and SpMV.
+
+The GUI may detect CUDA hardware, but CUDA selection does not execute the complete SIMPLE coupling on the GPU. When CUDA SIMPLE coupling is unavailable, the application explicitly falls back to the serial CPU implementation.
+
+This is an intentional release boundary rather than an unresolved v0.1.0 release blocker — see `TODO.md`'s CUDA scope decision (item #4) and `README.md`'s "CUDA / GPU Scope in v0.1.0" for the full record.
+
+### Post-v0.1.0 CUDA Development
+
+- [ ] Port momentum-equation assembly to CUDA.
+- [ ] Port pressure-correction assembly to CUDA.
+- [ ] Implement GPU-compatible SIMPLE coupling.
+- [ ] Implement GPU residual/convergence reductions.
+- [ ] Minimize CPU↔GPU transfers within the SIMPLE iteration loop.
+- [ ] Establish complete CPU/GPU SIMPLE numerical-equivalence tests.
+- [ ] Add end-to-end GPU SIMPLE regression tests.
+- [ ] Benchmark GPU SIMPLE against Serial and OpenMP CPU implementations.
+- [ ] Add larger-mesh GPU scaling studies.
+- [ ] Only advertise CUDA as a complete solver backend after end-to-end validation.
+
+### Backend Policy
+
+The backend architecture must distinguish between:
+
+1. **Supported solver backends** — capable of executing the complete SIMPLE algorithm.
+2. **Acceleration primitives** — GPU/parallel numerical operations that can be used underneath the solver but do not constitute a complete solver backend.
+
+For v0.1.0, Serial CPU and OpenMP are supported SIMPLE solver backends. CUDA belongs to the acceleration-primitives category until complete GPU SIMPLE coupling is implemented and validated.
+
+### Backend Completion Gate
+
+CUDA must not be advertised as a complete SIMPLE solver backend until all of the following are satisfied:
+
+- [ ] Complete SIMPLE iteration executes on CUDA.
+- [ ] Momentum equations execute through the GPU path.
+- [ ] Pressure correction executes through the GPU path.
+- [ ] Residual/convergence evaluation executes correctly.
+- [ ] CPU/GPU numerical equivalence is demonstrated.
+- [ ] End-to-end regression tests pass.
+- [ ] GPU benchmarks demonstrate measured performance.
+- [ ] GUI backend selection genuinely executes the CUDA solver.
+
+---
+
+## 🟢 Release Engineering — COMPLETE
+
+> **v0.1.0 shipped (2026-09-07):** repo initialized, tagged, and pushed to `origin`
+> (`github.com/matlabuser123/cfd_app`); `windows-ci.yml` confirmed green on GitHub Actions;
+> debug **and** release builds both pass **20/20 tests** (hardware-gated GPU benchmark skips
+> cleanly without CUDA); release evidence package assembled under `results/release/0.1.0/`;
+> `CHANGELOG.md` written; and the GitHub Release itself is published —
+> `https://github.com/matlabuser123/cfd_app/releases/tag/v0.1.0`, with the CI-built ZIP attached
+> (Actions run `34039782169` at commit `56c20c5`, matching the tag exactly). See `TODO.md` item #8.
+>
+> **v0.1.0 GPU scope (decided 2026-09-07):** CUDA backend selection (CLI and GUI) intentionally
+> falls back to the CPU solver, because full SIMPLE coupling is not yet ported to GPU — see the
+> "CUDA / GPU Acceleration" section above for the full decision record.
 
 ---
 
 ## 🔴 Current Focus
 
-> **Verified baseline (2026-09-07):** Debug **and** release builds both pass **20/20 tests**; the hardware-gated GPU benchmark is skipped cleanly without CUDA. Release evidence package assembled under `results/release/0.1.0/` (see its `EVIDENCE_MANIFEST.md` for caveats — notably no git repo/tag yet, so this is pre-release single-machine evidence). Numerical validation, performance, reliability, CPU parallelism, GPU infrastructure, and application features are complete.
+### Wire up `--case` in the CLI
 
-### Release Engineering
-
-- Final release
-
-> Versioned release complete: repo initialized locally, initial commit tagged `v0.1.0`
-> (`CHANGELOG.md` has the full v0.1.0 notes). Not yet pushed to a remote — see `TODO.md` item #1.
+> First post-release task, per `TODO.md`'s agreed sequencing (item #3 / sequencing step 5):
+> general case-directory execution through `cfdapp --case <path>`, reusing the existing
+> case-loading code already exercised by `CFDCaseTests` / the Qt `CaseEditor`, running the SIMPLE
+> solver to convergence, and emitting the same evidence artifacts `--validate-20` does. Chosen
+> ahead of the Post-Release backlog below because it closes a real CLI functionality gap
+> (`apps/cfdapp/main.cpp` still returns "Case execution is not wired into the CLI yet.") rather
+> than being additional polish on top of already-working functionality.
 
 ---
 
@@ -88,11 +176,11 @@
 
 ### Post-Release
 
-- Performance tuning
 - Larger-mesh benchmarks
+- Performance tuning
 - Additional CFD validation cases
 - Advanced turbulence/physics models
-- Expanded GPU solver coverage
+- Full CUDA SIMPLE coupling (GPU-accelerated end-to-end solve — see "CUDA / GPU Acceleration → Post-v0.1.0 CUDA Development" above for the detailed task breakdown)
 - Additional visualization features
 
 ---
@@ -164,9 +252,13 @@ Validation           ✅
 Performance          ✅
 Reliability          ✅
 OpenMP               ✅
-CUDA                 ✅
+CUDA                 ✅*
 Qt GUI               ✅
-Release              🔴 CURRENT
+Release              ✅
+CLI Case Runner      🔴 CURRENT
 ```
 
-**You have reached the final engineering stage: Release Engineering.**
+\* CUDA = validated acceleration primitives (field ops, CSR assembly, SpMV) only.
+Full CUDA SIMPLE coupling is scoped post-release — see "CUDA / GPU Acceleration" above.
+
+**v0.1.0 is released. Current stage: wiring `--case` into the CLI (`TODO.md` item #3).**
