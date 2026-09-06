@@ -67,9 +67,83 @@ Current priority is **SIMPLE numerical correctness**. Do not optimize or expand 
       else entirely) needs a real CFD-algorithm judgment call and careful re-derivation, not
       a guess -- explicitly left for deliberate follow-up rather than a speculative fix that
       "looks stable" without being verified correct.
-* [ ] Fix the identified pressure-correction/velocity-correction relaxation inconsistency
-      (see above) once the correct formula is confirmed (reference-derivation or
-      cross-check against a known-correct SIMPLE implementation recommended before coding).
+* [x] ~~Fix the identified pressure-correction/velocity-correction relaxation
+      inconsistency~~ — **attempted and empirically falsified, all three candidates**, via a
+      probe harness reproducing SIMPLE's exact iteration sequence at a moderately tight
+      inner tolerance (`1e-3`, 30 iterations): (1) current behavior (raw `aP`) — diverges to
+      `max|u| > 1e13` by iteration 2; (2) `aP` inflated by `1/velocityRelaxation` in
+      `PressureAssembler`+`correctVelocity` (the Patankar-consistency theory above) —
+      diverges *worse* (`1.46e13`); (3) relaxing the velocity correction itself by
+      `velocityRelaxation` before applying — iteration 1's peak is proportionally smaller
+      (as expected, ×0.7) but **still** diverges to `6.9e12` by iteration 2. All three fail
+      in the same qualitative way: not a marginal instability more damping would fix, but
+      exponential blow-up regardless of damping. Also notable: the blow-up is *worse*, not
+      better, at a tighter linear-solver tolerance (`max|u|=7415` after iteration 1 at
+      `1e-3` vs. `1183` at `1.0` from the earlier, looser-tolerance run) — backwards from
+      what "solver under-convergence noise" would predict, and consistent instead with a
+      genuine discretization/coupling defect that a more *accurate* linear solve exposes
+      more starkly, not a relaxation-tuning nuance. **Conclusion: the relaxation-consistency
+      theory above is very likely not the (or not the only) root cause.** No source files
+      were changed for this attempt (probe-only). Re-scoping: this needs a systematic,
+      term-by-term re-derivation of `PressureAssembler::coefficients`/`assemble` against a
+      textbook collocated-grid SIMPLE reference (this codebase stores u/v/p at cell centers,
+      using central-difference face gradients — e.g. `MomentumAssembler`'s
+      `-(pressure[east]-pressure[west])/(2dx)` source term and `correctVelocity`'s matching
+      `(correction[east]-correction[west])/(2dx)` — rather than a classic staggered grid),
+      or a minimal from-scratch reproduction with a known analytical solution to isolate
+      which specific coefficient is wrong, rather than another guess-and-check attempt.
+
+### #3a — Leading root-cause hypothesis (2026-09-07): missing Rhie-Chow interpolation
+
+Continued the systematic re-derivation above. Findings, most important first:
+
+* **Confirmed this is not a convection-scheme issue.** Re-ran the same iteration sequence
+  with viscosity raised to `100` (Re ≈ 0.01, effectively Stokes flow, negligible convective
+  nonlinearity) — **still diverges**, to `max|u| > 1e6` by iteration 2. A zero-lid-velocity
+  case (no forcing at all) correctly stays at exactly zero, ruling out a spontaneous /
+  boundary-condition-only bug. So the defect is in the momentum-pressure *coupling* itself,
+  not the upwind convection discretization.
+* **Confirmed iteration 1's blow-up is entirely independent of the momentum equation's
+  pressure-gradient source term.** Tried scaling that source term by the cell volume
+  (`* dy` for the x-equation) to fix a suspected units mismatch — iteration 1's peak
+  `max|u|` was *completely unchanged* (as expected in hindsight: pressure is uniformly
+  zero at iteration 1, so that source term is exactly zero regardless of its scaling), and
+  iteration 2+ diverged *faster* (`1.08e73` by iteration 3 vs. the original's `1e13`-ish by
+  iteration 2). Reverted immediately (see `git diff` — clean).
+* **`PressureEquation::correctVelocity`'s formula is self-consistent with
+  `MomentumAssembler`'s own source term** — both use the identical
+  `(neighbor_east - neighbor_west) / (2·dx)` central-difference convention, so perturbing
+  the discretized momentum equation as actually coded by a pressure correction `p'`
+  algebraically reproduces `correctVelocity`'s exact formula. This pairing is not
+  internally inconsistent with itself.
+* **Leading hypothesis: missing Rhie-Chow (or equivalent) momentum interpolation — a
+  textbook collocated-grid pressure-velocity decoupling ("checkerboard") defect.** Because
+  the velocity correction at cell P depends on pressure at cells *two grid points away*
+  (`p'_east`, `p'_west`, i.e. neighbors-of-the-face-neighbors, not the immediate face
+  values), while `PressureAssembler::assemble` builds a standard *narrow*, immediate-
+  neighbor 5-point Laplacian stencil for `p'` itself, the two are derived from different
+  effective stencils. This exact mismatch is the classical, textbook-documented cause of
+  spurious odd/even ("checkerboard") pressure-velocity oscillations on a collocated grid
+  (where velocity and pressure are stored at the same points) — normally suppressed via
+  Rhie-Chow interpolation (face velocities reconstructed from momentum-equation
+  coefficients rather than simple neighbor averaging) or avoided entirely by using a
+  staggered grid. This hypothesis is consistent with *every* observation so far: why it's
+  not a convection issue (checkerboard modes exist even in pure Stokes flow, confirmed
+  above); why it's rapid/exponential rather than marginal instability (checkerboard is an
+  unstable null-space-like mode, not a damping problem — consistent with all three
+  relaxation-based fixes failing identically); and why a *more accurate* linear solve makes
+  it *worse*, not better (a tighter solve resolves the true unstable mode more precisely
+  instead of it being partially masked by solver truncation error).
+* **Not yet implemented or empirically confirmed as the fix** — this is the leading,
+  best-supported hypothesis from the evidence gathered, not a proven-and-fixed conclusion.
+  Implementing Rhie-Chow interpolation correctly (reconstructing face velocities from
+  momentum coefficients in `MassFluxCalculator`/`PressureAssembler`, replacing the current
+  simple neighbor-averaged face velocities) is a substantial, structural algorithm change
+  touching multiple physics classes, not a quick patch — it needs its own careful
+  derivation, implementation, and full validation against the regression suite and (once
+  real convergence is achievable) the published Ghia et al. cavity benchmark data already
+  referenced by `PublishedValidation.cpp`, and should be scoped and executed as a dedicated
+  task rather than attempted live at the tail of this investigation.
 * [ ] Inspect mass-flux/continuity calculation (not yet reached -- blocked on the above).
 * [ ] Test `cases/cavity_20x20` at realistic tolerances (blocked on the above fix).
 * [x] Add linear-solver regression tests — n/a: root cause was in `SIMPLE.cpp`'s calling
