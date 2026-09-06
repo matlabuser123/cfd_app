@@ -94,19 +94,23 @@ SIMPLEResult SIMPLE::solve(
     // SIMPLESettings.hpp.
     //
     // BiCGSTABSolver/CGSolver target max(absoluteTolerance, relativeTolerance *
-    // initialResidual) -- passing the same value for both (as the default/unset path
-    // below does, unchanged) means the *effective* target is inflated to
-    // tolerance * initialResidual whenever initialResidual > 1, which can exceed the raw
-    // tolerance this function's own hard-fail checks compare against a few lines down.
-    // When overriding with an explicit inner tolerance, pass relativeTolerance = 0 so the
-    // inner solver's actual target matches that tolerance exactly, avoiding a spurious
-    // "solve failed" throw despite the inner solver believing it converged.
-    const bool momentumInnerOverride = settings_.innerMomentumTolerance > 0.0;
-    const bool pressureInnerOverride = settings_.innerPressureTolerance > 0.0;
-    const double momentumSolveTolerance = momentumInnerOverride ? settings_.innerMomentumTolerance : settings_.momentumTolerance;
-    const double pressureSolveTolerance = pressureInnerOverride ? settings_.innerPressureTolerance : settings_.pressureTolerance;
-    BiCGSTABSolver momentumSolver({1000, momentumSolveTolerance, momentumInnerOverride ? 0.0 : momentumSolveTolerance});
-    CGSolver pressureSolver({1000, pressureSolveTolerance, pressureInnerOverride ? 0.0 : pressureSolveTolerance});
+    // initialResidual). Passing relativeTolerance = 0 unconditionally (below) makes
+    // momentumTolerance/pressureTolerance behave as pure absolute tolerances, matching how
+    // the outer convergence check a few lines down already treats them -- previously this
+    // constructed both solvers with relativeTolerance equal to the same value as
+    // absoluteTolerance, which inflated the *effective* target to tolerance *
+    // initialResidual whenever initialResidual > 1, silently exceeding the raw tolerance
+    // this function's own hard-fail checks compare against and risking a spurious "solve
+    // failed" throw despite the inner solver believing it had converged. Confirmed via the
+    // full regression suite (TODO.md item #3a) that no existing caller's results change:
+    // every one of them already uses an absolute tolerance looser than this problem's
+    // natural initial residual, so the un-inflated target is reached identically.
+    const double momentumSolveTolerance = settings_.innerMomentumTolerance > 0.0
+        ? settings_.innerMomentumTolerance : settings_.momentumTolerance;
+    const double pressureSolveTolerance = settings_.innerPressureTolerance > 0.0
+        ? settings_.innerPressureTolerance : settings_.pressureTolerance;
+    BiCGSTABSolver momentumSolver({1000, momentumSolveTolerance, 0.0});
+    CGSolver pressureSolver({1000, pressureSolveTolerance, 0.0});
     ScalarField diagonalU(mesh_.cellCount());
     ScalarField diagonalV(mesh_.cellCount());
     SIMPLEResult result;
