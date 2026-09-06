@@ -85,3 +85,11 @@ add_executable(cfd_solver_backend_tests test_solver_backend.cpp)
 target_link_libraries(cfd_solver_backend_tests PRIVATE cfd_core)
 add_test(NAME CFDSolverBackendTests COMMAND cfd_solver_backend_tests)
 set_tests_properties(CFDSolverBackendTests PROPERTIES LABELS "parallel;gpu;correctness")
+
+add_executable(cfd_cli_case_tests test_cli_case.cpp)
+target_link_libraries(cfd_cli_case_tests PRIVATE cfd_core)
+target_compile_definitions(cfd_cli_case_tests PRIVATE
+    CFDAPP_SOURCE_DIR="${PROJECT_SOURCE_DIR}"
+    CFDAPP_EXECUTABLE_PATH="$<TARGET_FILE:cfdapp>"
+)
+add_test(NAME CFDCLICaseTests COMMAND cfd_cli_case_tests)

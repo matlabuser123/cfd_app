@@ -10,9 +10,14 @@ Each item has context and acceptance criteria so it can be picked up independent
 3. ✅ Verify `windows-ci.yml` runs green on GitHub (item #1) — confirmed via GitHub's public
    Actions API: run `34039534422` on `main` @ `5e9e7ba` (current HEAD) succeeded, 2026-09-07
 4. ✅ Cut the GitHub Release `v0.1.0`, attach the ZIP (item #8) — published 2026-09-07
-5. Wire up `cfdapp --case <path>` (item #3) — **deliberately not started yet**, first post-release task
-6. Add `.gitattributes` to prevent future CRLF churn (item #1's note) — deferred until after the release is cut, to avoid touching repo config pre-release
-7. Post-release CFD backlog: full CUDA SIMPLE coupling (item #9) plus the rest of `roadmap.md`'s "Post-Release" list
+5. ✅ Wire up `cfdapp --case <path>` (item #3) — done 2026-09-07, **surfaced a high-severity
+   pre-existing finding along the way: see item #3a** — SIMPLE's real (non-degenerate) convergence
+   behavior appears to have never been exercised by any existing caller in this codebase
+6. 🔴 Recommend prioritizing item #3a's follow-up (investigate SIMPLE's apparent numerical
+   instability / whether existing validation evidence is genuine) **before** the rest of this
+   sequencing — it questions design rule #1 ("CPU solver = numerical reference") directly
+7. Add `.gitattributes` to prevent future CRLF churn (item #1's note) — deferred until after the release is cut, to avoid touching repo config pre-release
+8. Post-release CFD backlog: full CUDA SIMPLE coupling (item #9) plus the rest of `roadmap.md`'s "Post-Release" list — item #9 additionally now depends on item #3a being resolved first, since CUDA/CPU equivalence is meaningless if the CPU reference itself isn't validated at real settings
 
 ---
 
@@ -78,23 +83,137 @@ on a clean shell passes 20/20 non-hardware-gated tests, reproducibly. — **met.
 
 ## P1 — Real functionality gaps hidden by the roadmap's "✅"
 
-### 3. Wire up `--case` in the CLI
-**Context:** `apps/cfdapp/main.cpp` currently returns `"Case execution is not wired into the CLI yet."`
-for `--case`. The only runnable end-to-end path today is the hardcoded `--validate-20`. General
-case execution (load any `cases/<name>/` directory and run it) doesn't exist from the command line.
-**Do:**
-- [ ] Implement general case-directory loading through the CLI (reusing the existing case-loading
-      code already exercised by `CFDCaseTests` / the Qt `CaseEditor`) — remove the current
-      hardcoded-only `--validate-20` limitation and allow arbitrary supported case directories
-- [ ] Run the existing SIMPLE solver through `cfd_core` to convergence or the configured iteration
-      limit, with configurable convergence settings read from the case's `numerics.json`
-- [ ] Produce deterministic solver output and emit the same evidence artifacts `--validate-20` does
-      (report/JSON/residuals), using the same result/evidence formats as the validation workflow,
-      under a case-specific results path
-- [ ] Add a CLI regression test (or extend `tests/test_case.cpp`) covering a full end-to-end
-      `--case` run against `cases/cavity_20x20`
+### 3. ✅ DONE (2026-09-07) — Wire up `--case` in the CLI
+**Context:** `apps/cfdapp/main.cpp` used to return `"Case execution is not wired into the CLI yet."`
+for `--case`. The only runnable end-to-end path was the hardcoded `--validate-20`. General case
+execution (load any `cases/<name>/` directory and run it) didn't exist from the command line.
+- [x] Implemented general case-directory loading through the CLI, reusing
+      `CFDController::loadValidationCase` (the exact code path the GUI already exercises, itself
+      built on `CaseLoader`/`CaseConfig`, the same parsing `CFDCaseTests` covers) — `cfdapp --case
+      <path>` now loads any conforming case directory, not just the hardcoded 20×20 validation case.
+- [x] Runs the existing SIMPLE solver via `CFDController::runValidation`/`ValidationRunner` to the
+      configured iteration limit, reading `maxIterations`/`momentum_tolerance`/`pressure_tolerance`
+      from the case's `numerics.json` through `loadValidationCase`.
+- [x] Emits the same evidence artifact set `--validate-20` does (`validation_report.txt`,
+      `validation.json`, `residuals.csv`) — refactored the writer into a shared
+      `writeValidationEvidence` helper used by both `--case` and `--validate-20`, under a
+      case-specific path (`results/case/<case-name>/`, mirroring `--validate-20`'s
+      `results/validation/...` convention, including being CWD-relative in the same way).
+- [x] Added `tests/test_cli_case.cpp` (`CFDCLICaseTests`) — spawns the real built `cfdapp.exe` (not
+      just the underlying library calls `CFDGUIControllerTests` already covers) against
+      `cases/cavity_20x20`, asserting exit code, evidence-file existence/content, and that a missing
+      case directory fails cleanly (exit 2) rather than crashing.
 **Acceptance:** `cfdapp --case cases/cavity_20x20` runs to completion and writes result artifacts,
-with a passing test covering it.
+with a passing test covering it. — **met** (debug + release both 22/22 non-hardware-gated tests
+passing, zero regressions). Note: "runs to completion" is satisfied by reaching the declared
+1000-iteration limit; the case does not actually *converge* against its own declared 1e-8
+tolerance — see the finding below, which this acceptance wording ("to convergence **or** the
+configured iteration limit") anticipates as a legitimate terminal state, not a CLI defect.
+
+**Incidental fixes needed to make this work (additive, zero behavior change for existing callers
+— see full regression re-run above):**
+- `gh`/`std::system()` was a red herring in the *test's* plumbing, not production code: on Windows,
+  `std::system()` runs commands through `cmd.exe /c`, which corrupts a command line containing more
+  than one pair of quotes unless the whole thing is wrapped in one more, outer pair — documented
+  cmd.exe quoting quirk, fixed in `test_cli_case.cpp`'s `runCfdapp` helper.
+- `CFDController.cpp` has zero Qt dependency but lived only under `src/gui/`, which `cfd_core`'s
+  glob excludes entirely — `apps/cfdapp`'s CMake target now compiles it directly as an extra
+  source, the same pattern `CFDGUIControllerTests` already used.
+- `SIMPLESettings`/`ValidationCase` gained two new, additive, default-`0.0`-sentinel fields
+  (`innerMomentumTolerance`/`innerPressureTolerance` — see `SIMPLESettings.hpp`) so a caller can
+  loosen *only* the inner per-iteration linear-solve gate independently of the outer convergence
+  tolerances — needed because feeding `SIMPLE` a case's literal (tight) declared tolerance directly
+  hard-throws or (worse, see below) silently no-ops; see the finding immediately below for why this
+  was needed and what it surfaced. Every existing caller leaves the new fields unset and is
+  provably unaffected (full regression suite re-run, zero changes).
+
+---
+
+### 3a. 🔴 NEW FINDING (2026-09-07, discovered while implementing #3) — SIMPLE's real (non-trivial) convergence behavior has apparently never been exercised or validated
+**Severity: high — calls into question what the project's existing "validation" evidence actually
+demonstrates.** Flagging this prominently rather than burying it, in the same spirit as items #2
+and #4's "don't trust the roadmap's ✅ marks at face value" findings.
+
+**What was found:** `SIMPLE::solve` requires its inner momentum/pressure linear solve
+(BiCGSTAB/CG, falling back to Gauss-Seidel) to already be within `momentumTolerance`/
+`pressureTolerance` on *every single* outer SIMPLE iteration, hard-throwing otherwise — not just as
+a final convergence target (`SIMPLE.cpp`, the two `throw std::runtime_error("SIMPLE ...-momentum
+solve failed...")` sites). Investigating why `--case` crashed on cavity_20x20's own declared
+`numerics.json` tolerance (`1e-8`) surfaced that **no existing caller in this codebase has ever fed
+SIMPLE a tight tolerance for that per-iteration gate**: `--validate-20` (`momentumTolerance = 10.0`),
+`test_validation.cpp` (`10.0`/`20.0`), and `GridRefinementAnalyzer.cpp` (`10.0`/`50.0`) all use
+values far looser than any case's own `numerics.json` (typically `1e-8`).
+
+Tracing *why* this loose value is "safe" led to two further findings, in order of severity:
+1. `BiCGSTABSolver`/`CGSolver` target `max(absoluteTolerance, relativeTolerance * initialResidual)`.
+   `SIMPLE.cpp` passes the *same* value for both slots, so whenever `initialResidual > 1` (measured
+   ~4.37 for cavity_20x20's u-momentum system), the *effective* target is inflated well past the
+   raw tolerance value used elsewhere for the hard-fail check — a latent inconsistency, now fixed
+   for the new opt-in `innerMomentumTolerance`/`innerPressureTolerance` path (passes
+   `relativeTolerance = 0` when overriding) but **left unchanged for the default path**, i.e. still
+   present for every existing caller.
+2. **Far more serious:** with a loose absolute tolerance (10.0/20.0, per existing precedent), the
+   inner linear solver's very first check (`if (initialResidual <= target) return converged`)
+   trivially "succeeds" with **zero actual linear-solve iterations performed**, leaving
+   `LinearSystem::solution()` at its untouched default. The velocity update
+   (`velocity = relaxation * solution + (1 - relaxation) * old_velocity`) then leaves the field
+   unchanged, forever. Verified directly with a probe harness driving `SIMPLE` through 1000
+   iterations with an `iterationCallback`: **residuals were bit-identical from iteration 1 through
+   iteration 1000, and the center-cell velocity was exactly `(0, 0)` throughout** — i.e. the
+   "solve" never solved anything past its first (degenerate) residual evaluation, for the entire
+   run, and `--validate-20`'s own smoke gate (loose enough to trivially pass at iteration 1) was
+   never in a position to notice.
+   - Tried tightening the inner tolerance to force genuine iterative work (`1e-3` down to `1e-6`,
+     with the relative-tolerance fix from point 1 applied): the per-iteration hard-fail gate throws
+     as soon as a later iteration's system becomes harder to solve than the earlier ones — plausible
+     ill-conditioning in the (unpreconditioned) pressure Poisson solve, `CGSolver`/Gauss-Seidel
+     fallback alike, as the flow field develops.
+   - Tried a moderate tolerance (`0.5`–`2.0`, genuinely doing per-iteration work rather than the
+     degenerate zero-iteration "success"): **the outer SIMPLE iteration visibly diverges** —
+     continuity residual grew from ~278 to ~48,800 in a single iteration (iteration 1 → 2) — rather
+     than converging, for the exact same case/mesh/relaxation factors (`0.7`/`0.3`) every existing
+     caller already uses.
+
+**What this means:** every "✅ Complete" validation claim in `roadmap.md` that runs through
+`ValidationCase`/`ValidationRunner`/`SIMPLE` (20×20/40×40/80×80 validation, grid-refinement
+analysis, performance benchmarks/regression gates, thread-scaling) may only ever have exercised
+this same degenerate, effectively-zero-real-iteration regime — **not verified as fact for every one
+of those code paths in this session** (only `--validate-20`, `test_validation.cpp`, and
+`GridRefinementAnalyzer.cpp` were directly checked and confirmed to use the same loose-tolerance
+pattern), but plausible enough, and serious enough if true, to need dedicated investigation before
+trusting those results as genuine evidence of a working, convergent CPU reference solver — which is
+design rule #1 in this project ("CPU solver = numerical reference").
+
+**What was *not* done (deliberately, out of scope for item #3):** no attempt was made to fix
+`SIMPLE`'s actual momentum-pressure coupling, relaxation factors, or the pressure solve's apparent
+conditioning/stability issues. That is real, dedicated CFD-numerics debugging work, not a
+CLI-wiring task, and touching the solver's core algorithm without first fully understanding *why*
+it diverges at real (non-degenerate) settings would be reckless given design rule #4 ("every major
+change needs tests") and rule #6 ("CPU/GPU implementations must produce equivalent results" — moot
+if the CPU reference itself isn't validated at real settings first).
+
+**`--case`'s own resolution:** uses the same loose `10.0`/`20.0` operational values as
+`--validate-20` for the *inner* per-iteration gate (via the new `innerMomentumTolerance`/
+`innerPressureTolerance` fields), inheriting the same degenerate-but-safe behavior rather than
+attempting a fix here — but unlike `--validate-20`, it evaluates and reports true pass/fail
+(`result.passed`, driving both the evidence file's fields and the exit code) against the case's
+*actual* declared `momentumTolerance`/`pressureTolerance`/`continuityTolerance`, which are left
+untouched. This is why `cfdapp --case cases/cavity_20x20` honestly reports "Converged: no" and
+exits 1 today, rather than manufacturing a "yes" the way `--validate-20`'s own loose gate would.
+
+**Recommended follow-up (not started, needs its own dedicated task):**
+- [ ] Confirm/refute whether 20×20/40×40/80×80 validation, grid-refinement analysis, and
+      performance benchmarks are *also* running in this same degenerate zero-real-iteration regime
+      (only `GridRefinementAnalyzer.cpp` was spot-checked for tolerance values here — not run
+      through the same instrumented-probe verification `--case` was).
+- [ ] Fix the `BiCGSTABSolver`/`CGSolver` relative-tolerance inflation bug for the *default* path too
+      (point 1 above), not just the new opt-in override.
+- [ ] Investigate why the outer SIMPLE iteration diverges once the inner solve does real work at
+      moderate tolerances (point 2 above) — likely candidates: relaxation factor tuning, pressure
+      Poisson conditioning/null-space handling, or a sign/coupling error in the correction step.
+- [ ] Once fixed, re-run the *entire* validation suite (20×20/40×40/80×80, grid-refinement,
+      published-case comparison) at genuinely tight tolerances and confirm the results still hold —
+      they may not.
 
 ### 4. ✅ DONE (2026-09-07) — Decide and document GPU (CUDA) solve scope for this release
 **Context:** CUDA kernels, field ops, matrix assembly, and linear algebra are implemented and

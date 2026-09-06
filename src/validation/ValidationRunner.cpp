@@ -67,7 +67,9 @@ Snapshot runOnce(
         validationCase.pressureTolerance,
         validationCase.continuityTolerance,
         0.7,
-        0.3
+        0.3,
+        validationCase.innerMomentumTolerance,
+        validationCase.innerPressureTolerance
     });
     simple.setBoundaryConditions({&lid, &bottomWall, &leftWall, &rightWall});
 

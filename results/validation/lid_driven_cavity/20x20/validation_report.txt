@@ -1,6 +1,6 @@
 case: lid_driven_cavity_20x20
 mesh: 20x20
-rho: 1.0
+rho: 1
 mu: 0.01
 reynolds: 100
 strict_converged: false
@@ -10,5 +10,5 @@ continuity_residual: 0.10000000000000001
 u_residual: 4.3732139211339751
 v_residual: 0
 mass_imbalance: 0.10000000000000001
-runtime_milliseconds: 12.2125
+runtime_milliseconds: 13.339700000000001
 finite_solution: true

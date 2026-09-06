@@ -156,19 +156,39 @@ CUDA must not be advertised as a complete SIMPLE solver backend until all of the
 > falls back to the CPU solver, because full SIMPLE coupling is not yet ported to GPU — see the
 > "CUDA / GPU Acceleration" section above for the full decision record.
 
+- `cfdapp --case <path>` CLI wiring (2026-09-07): general case-directory execution, reusing
+  `CFDController::loadValidationCase`/`ValidationRunner` (the same path the GUI already
+  exercises), emitting the same evidence artifacts `--validate-20` does under a case-specific
+  path; covered by `CFDCLICaseTests`, which spawns the real built executable. See `TODO.md`
+  item #3.
+
 ---
 
 ## 🔴 Current Focus
 
-### Wire up `--case` in the CLI
+### Investigate SIMPLE's apparent numerical instability at real (non-degenerate) tolerances
 
-> First post-release task, per `TODO.md`'s agreed sequencing (item #3 / sequencing step 5):
-> general case-directory execution through `cfdapp --case <path>`, reusing the existing
-> case-loading code already exercised by `CFDCaseTests` / the Qt `CaseEditor`, running the SIMPLE
-> solver to convergence, and emitting the same evidence artifacts `--validate-20` does. Chosen
-> ahead of the Post-Release backlog below because it closes a real CLI functionality gap
-> (`apps/cfdapp/main.cpp` still returns "Case execution is not wired into the CLI yet.") rather
-> than being additional polish on top of already-working functionality.
+> **High-severity finding, discovered 2026-09-07 while implementing `--case` (`TODO.md` item
+> #3a) — read the full record there before starting.** Summary: every existing caller that
+> drives `SIMPLE` through `ValidationCase`/`ValidationRunner` (`--validate-20`,
+> `test_validation.cpp`, `GridRefinementAnalyzer.cpp`) uses a momentum/pressure tolerance
+> (`10.0`–`50.0`) far looser than any case's own declared `numerics.json` (typically `1e-8`).
+> Tracing why revealed the inner linear solver's convergence check trivially short-circuits at
+> that looseness, performing **zero actual iterations** and leaving the velocity field frozen at
+> its initial value — confirmed directly: residuals were bit-identical across all 1000 SIMPLE
+> iterations of a lid-driven cavity solve, with center-cell velocity exactly `(0, 0)` throughout.
+> Tightening the tolerance enough to force genuine iterative work instead causes the outer SIMPLE
+> iteration to visibly **diverge** (continuity residual growing ~2 orders of magnitude in a single
+> iteration) for the same case, mesh, and relaxation factors every existing test already uses.
+>
+> This calls into question whether any of the "🟢 Complete" validation entries above that run
+> through this same pipeline (20×20/40×40/80×80 validation, grid-refinement analysis, performance
+> benchmarks) reflect a genuinely converged, physically meaningful CPU solve, or the same
+> degenerate zero-iteration artifact — **not confirmed either way for most of them**, only
+> spot-checked for tolerance values on `GridRefinementAnalyzer.cpp`. This directly concerns design
+> rule #1 below ("CPU solver = numerical reference") and should be resolved, or at least
+> conclusively scoped, before further validation claims are trusted at face value or before item
+> #9's CUDA/CPU equivalence work resumes (equivalence to an unvalidated reference proves nothing).
 
 ---
 
@@ -247,18 +267,24 @@ Release
 ### 🚀 Current position
 
 ```text
-CPU CFD Solver       ✅
-Validation           ✅
+CPU CFD Solver       ✅†
+Validation           ✅†
 Performance          ✅
 Reliability          ✅
 OpenMP               ✅
 CUDA                 ✅*
 Qt GUI               ✅
 Release              ✅
-CLI Case Runner      🔴 CURRENT
+CLI Case Runner      ✅
+SIMPLE @ real tol.    🔴 CURRENT
 ```
 
 \* CUDA = validated acceleration primitives (field ops, CSR assembly, SpMV) only.
 Full CUDA SIMPLE coupling is scoped post-release — see "CUDA / GPU Acceleration" above.
 
-**v0.1.0 is released. Current stage: wiring `--case` into the CLI (`TODO.md` item #3).**
+† Confirmed correct only in the loose-tolerance regime every existing caller uses (see Current
+Focus above) — genuine convergence at a case's own declared tolerance is an open question, not
+yet confirmed either way for most of the validation entries this checkmark covers.
+
+**v0.1.0 is released. Current stage: investigating SIMPLE's apparent numerical instability at
+real tolerances (`TODO.md` item #3a) — a higher-priority finding than the CUDA backlog below.**

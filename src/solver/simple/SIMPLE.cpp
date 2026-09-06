@@ -87,8 +87,26 @@ SIMPLEResult SIMPLE::solve(
     MomentumEquation momentum(mesh_, density_, viscosity_);
     PressureEquation pressureEquation(mesh_, density_);
     MassFluxCalculator fluxes(mesh_, density_);
-    BiCGSTABSolver momentumSolver({1000, settings_.momentumTolerance, settings_.momentumTolerance});
-    CGSolver pressureSolver({1000, settings_.pressureTolerance, settings_.pressureTolerance});
+    // The inner per-iteration solve targets/gates use innerMomentumTolerance/
+    // innerPressureTolerance when a caller has set them (> 0.0), decoupling the
+    // per-iteration hard-fail gate from the outer convergence check below, which always
+    // uses momentumTolerance/pressureTolerance/continuityTolerance directly. See
+    // SIMPLESettings.hpp.
+    //
+    // BiCGSTABSolver/CGSolver target max(absoluteTolerance, relativeTolerance *
+    // initialResidual) -- passing the same value for both (as the default/unset path
+    // below does, unchanged) means the *effective* target is inflated to
+    // tolerance * initialResidual whenever initialResidual > 1, which can exceed the raw
+    // tolerance this function's own hard-fail checks compare against a few lines down.
+    // When overriding with an explicit inner tolerance, pass relativeTolerance = 0 so the
+    // inner solver's actual target matches that tolerance exactly, avoiding a spurious
+    // "solve failed" throw despite the inner solver believing it converged.
+    const bool momentumInnerOverride = settings_.innerMomentumTolerance > 0.0;
+    const bool pressureInnerOverride = settings_.innerPressureTolerance > 0.0;
+    const double momentumSolveTolerance = momentumInnerOverride ? settings_.innerMomentumTolerance : settings_.momentumTolerance;
+    const double pressureSolveTolerance = pressureInnerOverride ? settings_.innerPressureTolerance : settings_.pressureTolerance;
+    BiCGSTABSolver momentumSolver({1000, momentumSolveTolerance, momentumInnerOverride ? 0.0 : momentumSolveTolerance});
+    CGSolver pressureSolver({1000, pressureSolveTolerance, pressureInnerOverride ? 0.0 : pressureSolveTolerance});
     ScalarField diagonalU(mesh_.cellCount());
     ScalarField diagonalV(mesh_.cellCount());
     SIMPLEResult result;
@@ -141,8 +159,8 @@ SIMPLEResult SIMPLE::solve(
         scaleRowsByDiagonal(uSystem);
         LinearSolverResult uSolve;
         profiled(profiler_, "u_linear_solve", [&] { uSolve = momentumSolver.solve(uSystem); });
-        const double uResidual = uSolve.converged ? uSolve.finalResidual : gaussSeidelFallback(uSystem, settings_.momentumTolerance);
-        if (uResidual > settings_.momentumTolerance) throw std::runtime_error("SIMPLE U-momentum solve failed: " + uSolve.failureReason + " (residual " + std::to_string(uResidual) + ")");
+        const double uResidual = uSolve.converged ? uSolve.finalResidual : gaussSeidelFallback(uSystem, momentumSolveTolerance);
+        if (uResidual > momentumSolveTolerance) throw std::runtime_error("SIMPLE U-momentum solve failed: " + uSolve.failureReason + " (residual " + std::to_string(uResidual) + ")");
         parallelFor(0, mesh_.cellCount(), [&](std::size_t cell)
         {
             velocity[cell].x = settings_.velocityRelaxation * uSystem.solution()[cell] + (1.0 - settings_.velocityRelaxation) * velocity[cell].x;
@@ -155,8 +173,8 @@ SIMPLEResult SIMPLE::solve(
         scaleRowsByDiagonal(vSystem);
         LinearSolverResult vSolve;
         profiled(profiler_, "v_linear_solve", [&] { vSolve = momentumSolver.solve(vSystem); });
-        const double vResidual = vSolve.converged ? vSolve.finalResidual : gaussSeidelFallback(vSystem, settings_.momentumTolerance);
-        if (vResidual > settings_.momentumTolerance) throw std::runtime_error("SIMPLE V-momentum solve failed: " + vSolve.failureReason + " (residual " + std::to_string(vResidual) + ")");
+        const double vResidual = vSolve.converged ? vSolve.finalResidual : gaussSeidelFallback(vSystem, momentumSolveTolerance);
+        if (vResidual > momentumSolveTolerance) throw std::runtime_error("SIMPLE V-momentum solve failed: " + vSolve.failureReason + " (residual " + std::to_string(vResidual) + ")");
         parallelFor(0, mesh_.cellCount(), [&](std::size_t cell)
         {
             velocity[cell].y = settings_.velocityRelaxation * vSystem.solution()[cell] + (1.0 - settings_.velocityRelaxation) * velocity[cell].y;
@@ -168,8 +186,8 @@ SIMPLEResult SIMPLE::solve(
         scaleRowsByDiagonal(pressureSystem);
         LinearSolverResult pressureSolve;
         profiled(profiler_, "pressure_linear_solve", [&] { pressureSolve = pressureSolver.solve(pressureSystem); });
-        const double pressureResidual = pressureSolve.converged ? pressureSolve.finalResidual : gaussSeidelFallback(pressureSystem, settings_.pressureTolerance);
-        if (pressureResidual > settings_.pressureTolerance) throw std::runtime_error("SIMPLE pressure solve failed: " + pressureSolve.failureReason + " (residual " + std::to_string(pressureResidual) + ")");
+        const double pressureResidual = pressureSolve.converged ? pressureSolve.finalResidual : gaussSeidelFallback(pressureSystem, pressureSolveTolerance);
+        if (pressureResidual > pressureSolveTolerance) throw std::runtime_error("SIMPLE pressure solve failed: " + pressureSolve.failureReason + " (residual " + std::to_string(pressureResidual) + ")");
         ScalarField correction(mesh_.cellCount());
         parallelFor(0, mesh_.cellCount(), [&](std::size_t cell) { correction[cell] = pressureSystem.solution()[cell]; });
         profiled(profiler_, "velocity_correction", [&]

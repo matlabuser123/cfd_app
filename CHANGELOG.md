@@ -3,6 +3,32 @@
 All notable changes to CFDApp are documented in this file. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added
+
+- `cfdapp --case <path>` now loads and runs any conforming case directory (not just the hardcoded
+  `--validate-20`), emitting the same evidence artifacts under `results/case/<case-name>/`; covered
+  by `CFDCLICaseTests`. See `TODO.md` item #3.
+- `SIMPLESettings`/`ValidationCase` gained additive `innerMomentumTolerance`/
+  `innerPressureTolerance` fields for decoupling the inner per-iteration linear-solve gate from the
+  outer convergence tolerance (default-unset, zero behavior change for existing callers).
+
+### Known Limitations
+
+- **High severity, needs dedicated investigation:** every existing `SIMPLE`-driving code path
+  checked so far (`--validate-20`, `test_validation.cpp`, `GridRefinementAnalyzer.cpp`) uses a
+  momentum/pressure tolerance far looser than any case's own declared `numerics.json` — loose
+  enough that the inner linear solver performs **zero actual iterations**, leaving the velocity
+  field frozen at its initial value for the entire run (confirmed: bit-identical residuals across
+  1000 SIMPLE iterations, center-cell velocity exactly `(0, 0)` throughout). Tightening the
+  tolerance enough to force real iterative work instead causes the outer SIMPLE iteration to
+  visibly diverge. `cfdapp --case` inherits the same loose operational tolerance for now (matching
+  `--validate-20`'s precedent) but evaluates and reports true pass/fail against a case's actual
+  declared tolerance, so it honestly reports non-convergence rather than masking it. See `TODO.md`
+  item #3a for the full record — this calls into question whether the v0.1.0 validation entries
+  below that share this pipeline reflect genuine convergence.
+
 ## [0.1.0] — 2026-09-07
 
 Initial versioned release. First release engineered end-to-end: CPU reference solver through

@@ -63,7 +63,7 @@ else()
     target_compile_definitions(cfd_core PUBLIC CFDAPP_HAS_CUDA=0)
 endif()
 
-add_executable(cfdapp apps/cfdapp/main.cpp)
+add_executable(cfdapp apps/cfdapp/main.cpp src/gui/CFDController.cpp)
 target_link_libraries(cfdapp PRIVATE cfd_core)
 
 target_compile_definitions(cfdapp PRIVATE
