@@ -77,8 +77,10 @@
 
 ### Release Engineering
 
-- Versioned release
 - Final release
+
+> Versioned release complete: repo initialized locally, initial commit tagged `v0.1.0`
+> (`CHANGELOG.md` has the full v0.1.0 notes). Not yet pushed to a remote — see `TODO.md` item #1.
 
 ---
 

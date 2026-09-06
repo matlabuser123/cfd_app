@@ -7,15 +7,21 @@ Each item has context and acceptance criteria so it can be picked up independent
 
 ## P0 — Blockers for anything called "release"
 
-### 1. Initialize version control and verify CI actually runs
-**Context:** This directory has no `.git` — `.github/workflows/windows-ci.yml` exists but has
-never executed. There is no commit history, no way to diff "what changed," and no place to
+### 1. Partially done (2026-09-07) — Initialize version control and verify CI actually runs
+**Context:** This directory had no `.git` — `.github/workflows/windows-ci.yml` existed but had
+never executed. There was no commit history, no way to diff "what changed," and no place to
 attach a tagged release.
-**Do:**
-- [ ] `git init`, add a sensible initial commit (respecting `.gitignore` — `build/`, `.vscode/*.log`, etc.)
-- [ ] Push to a GitHub remote
-- [ ] Confirm `Windows CI` workflow runs green on the initial push (configure → build → test for both debug and release, package, clean-machine validate, install test)
+- [x] `git init -b main` (local only), repo-local identity set (`user.name`/`user.email`)
+- [x] `.gitignore` extended to exclude `package/staging/` (build output) and
+      `results/release/*/*.zip` (binary release archives — better attached to a GitHub Release
+      than kept in git history; the evidence text/json/csv alongside them is still tracked)
+- [x] Initial commit made (213 files) and tagged `v0.1.0`
+- [ ] Still open: **push to a GitHub remote** — deliberately not done automatically; needs you to
+      say where (existing repo URL, or create one)
+- [ ] Still open: confirm `Windows CI` workflow actually runs green once pushed (configure →
+      build → test for both debug and release, package, clean-machine validate, install test)
 **Acceptance:** GitHub Actions shows a green run of `windows-ci.yml` on the repo's default branch.
+— not yet met; blocked on a remote.
 
 ### 2. ✅ DONE (2026-09-07) — Fix the 4 currently-failing local tests and pin the toolchain
 **Context:** `roadmap.md` claimed "Verified baseline: 20 passing tests," but running
@@ -102,10 +108,16 @@ single string before matching.
 - [ ] Still open: this evidence isn't tied to a commit/tag yet (depends on #1) — re-generate once
       the repo exists so the package can reference a real commit hash
 
-### 7. Versioned release
-- [ ] Bump `project(CFDApp VERSION ...)` in `CMakeLists.txt` from the placeholder `0.1.0` if appropriate
-- [ ] Tag the release in git, attach the CPack ZIP produced by `scripts/package-release.ps1`
-- [ ] Confirm `cfdapp.exe --version` output matches the tag
+### 7. ✅ DONE locally (2026-09-07) — Versioned release
+- [x] Kept `project(CFDApp VERSION 0.1.0 ...)` — reasonable as the version for an initial
+      semver-0.x release; no reason found to bump it
+- [x] Wrote `CHANGELOG.md` (Added/Fixed/Known Limitations for v0.1.0)
+- [x] Tagged the release in git: annotated tag `v0.1.0` on commit `56c20c5`
+- [x] Confirmed `cfdapp.exe --version` output (`CFDApp 0.1.0`) matches the tag — see
+      `results/release/0.1.0/01_version.txt`
+- [ ] Still open: the CPack ZIP itself is deliberately *not* committed to git (see #1's
+      `.gitignore` note) — attach `build/release/CFDApp-0.1.0-Windows-x64.zip` as a **GitHub
+      Release** asset once #1's remote exists, rather than tagging-and-forgetting it locally
 
 ### 8. Final release
 - [ ] Cut the GitHub release from the tag, attach the CI-built artifact from the `Windows CI` workflow
