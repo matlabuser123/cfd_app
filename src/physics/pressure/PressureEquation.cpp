@@ -48,6 +48,15 @@ void PressureEquation::correctVelocity(
 {
     const std::size_t cells = mesh_.cellCount();
     if (velocity.size() != cells || correction.size() != cells || momentumDiagonalU.size() != cells || momentumDiagonalV.size() != cells) throw std::invalid_argument("Velocity correction fields must match mesh size");
+
+    // MomentumAssembler stores integrated finite-volume coefficients (kg/s), while its
+    // pressure source is the cell-volume term -V grad(p). Therefore the SIMPLE velocity
+    // correction is u' = -(V/aP) grad(p'), not -(1/aP) grad(p'). Omitting V here makes
+    // the correction too large by 1/V (400x on a 20x20 unit-square mesh), which was the
+    // direct source of the observed first-iteration blow-up.
+    const double cellVolume = mesh_.dx() * mesh_.dy();
+    if (cellVolume <= 0.0) throw std::invalid_argument("Velocity correction requires positive cell volume");
+
     parallelFor(0, cells, [&](std::size_t cell)
     {
         const auto east = mesh_.east(cell);
@@ -58,8 +67,8 @@ void PressureEquation::correctVelocity(
         if (momentumDiagonalU[cell] <= 0.0 || momentumDiagonalV[cell] <= 0.0) throw std::invalid_argument("Momentum diagonals must be positive");
         const double dpdx = (correction[*east] - correction[*west]) / (2.0 * mesh_.dx());
         const double dpdy = (correction[*north] - correction[*south]) / (2.0 * mesh_.dy());
-        velocity[cell].x -= dpdx / momentumDiagonalU[cell];
-        velocity[cell].y -= dpdy / momentumDiagonalV[cell];
+        velocity[cell].x -= cellVolume * dpdx / momentumDiagonalU[cell];
+        velocity[cell].y -= cellVolume * dpdy / momentumDiagonalV[cell];
     });
 }
 
